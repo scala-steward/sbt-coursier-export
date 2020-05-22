@@ -1,6 +1,8 @@
 package sbtcoursierexport
 
 import java.io.File
+import java.nio.file.Files
+import java.nio.charset.StandardCharsets
 
 import sbt._
 import sbt.Keys._
@@ -14,6 +16,7 @@ object SbtCoursierExportPlugin extends AutoPlugin {
 
   object autoImport {
     val coursierExport = taskKey[Seq[String]]("Prints dependencies / repositories / etc. as a list of arguments that can be passed to the coursier CLI")
+    val coursierExportTo = inputKey[File]("Write to a file dependencies / repositories / etc. as a list of arguments that can be passed to the coursier CLI")
     val classPathExport = taskKey[String]("Prints the class path of the current module in a format that can be passed to 'java -cp'")
     val publishDependenciesLocal = taskKey[Unit]("Publishes locally the dependencies of the current module")
   }
@@ -24,6 +27,17 @@ object SbtCoursierExportPlugin extends AutoPlugin {
     CrossVersion(crossVersion, sv, sbv).fold(baseName)(_(baseName))
   private def moduleName(m: ModuleID, sv: String, sbv: String): String =
     moduleName(m.crossVersion, sv, sbv, m.name)
+
+  private def writeTo: Def.Initialize[sbt.InputTask[File]] =
+    Def.inputTask {
+      import sbt.complete.DefaultParsers._
+
+      val destPath = (OptSpace ~> StringBasic).parsed.trim
+      val dest = new File(destPath)
+      val content = coursierExport.value.mkString("\n")
+      Files.write(dest.toPath, content.getBytes(StandardCharsets.UTF_8))
+      dest
+    }
 
   override def projectSettings = Def.settings(
     coursierExport := {
@@ -86,6 +100,7 @@ object SbtCoursierExportPlugin extends AutoPlugin {
 
       argGroups.flatten
     },
+    coursierExportTo := writeTo.evaluated,
     classPathExport := {
       val classPathSeq = fullClasspathAsJars.in(Compile).value
       val classPath = classPathSeq
