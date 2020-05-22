@@ -96,7 +96,7 @@ object SbtCoursierExportPlugin extends AutoPlugin {
         Seq(Seq("--no-default")) ++
         repositories
 
-      System.err.println(argGroups.map(_.mkString(" ")).mkString(System.lineSeparator))
+      System.err.println(argGroups.flatten.mkString(System.lineSeparator))
 
       argGroups.flatten
     },
