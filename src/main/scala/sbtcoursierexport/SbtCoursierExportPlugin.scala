@@ -1,6 +1,8 @@
 package sbtcoursierexport
 
 import java.io.File
+import java.nio.file.Files
+import java.nio.charset.StandardCharsets
 
 import sbt._
 import sbt.Keys._
@@ -14,6 +16,7 @@ object SbtCoursierExportPlugin extends AutoPlugin {
 
   object autoImport {
     val coursierExport = taskKey[Seq[String]]("Prints dependencies / repositories / etc. as a list of arguments that can be passed to the coursier CLI")
+    val coursierExportTo = inputKey[File]("Write to a file dependencies / repositories / etc. as a list of arguments that can be passed to the coursier CLI")
     val classPathExport = taskKey[String]("Prints the class path of the current module in a format that can be passed to 'java -cp'")
     val publishDependenciesLocal = taskKey[Unit]("Publishes locally the dependencies of the current module")
   }
@@ -24,6 +27,17 @@ object SbtCoursierExportPlugin extends AutoPlugin {
     CrossVersion(crossVersion, sv, sbv).fold(baseName)(_(baseName))
   private def moduleName(m: ModuleID, sv: String, sbv: String): String =
     moduleName(m.crossVersion, sv, sbv, m.name)
+
+  private def writeTo: Def.Initialize[sbt.InputTask[File]] =
+    Def.inputTask {
+      import sbt.complete.DefaultParsers._
+
+      val destPath = (OptSpace ~> StringBasic).parsed.trim
+      val dest = new File(destPath)
+      val content = coursierExport.value.mkString("\n")
+      Files.write(dest.toPath, content.getBytes(StandardCharsets.UTF_8))
+      dest
+    }
 
   override def projectSettings = Def.settings(
     coursierExport := {
@@ -38,21 +52,28 @@ object SbtCoursierExportPlugin extends AutoPlugin {
       }
 
       val deps = allDependencies.value.map { m =>
-        val excl = m.exclusions.map { e =>
-          s",exclude=${e.organization}%${moduleName(e.crossVersion, sv, sbv, e.name)}"
+        m.configurations match {
+          // FIXME This is too naive, this doesn't handle fine values like "compile->foo;test->test"
+          case Some(conf) if conf == "test" || conf.startsWith("test->") =>
+            log.info(s"Not passing $conf dependency ${m.organization}:${moduleName(m, sv, sbv)}:${m.revision} to coursier")
+            Nil
+          case _ =>
+            val excl = m.exclusions.map { e =>
+              s",exclude=${e.organization}%${moduleName(e.crossVersion, sv, sbv, e.name)}"
+            }
+            val sepOpt =
+              if (m.crossVersion == CrossVersion.binary) Some("::")
+              else if (m.crossVersion == CrossVersion.full || m.crossVersion == CrossVersion.patch) Some(":::")
+              else if (m.crossVersion == CrossVersion.disabled) Some(":")
+              else None
+            val dep = sepOpt match {
+              case None =>
+                s"${m.organization}:${moduleName(m, sv, sbv)}:${m.revision}${excl.mkString}"
+              case Some(sep) =>
+                s"${m.organization}$sep${m.name}:${m.revision}${excl.mkString}"
+            }
+            Seq(dep)
         }
-        val sepOpt =
-          if (m.crossVersion == CrossVersion.binary) Some("::")
-          else if (m.crossVersion == CrossVersion.full || m.crossVersion == CrossVersion.patch) Some(":::")
-          else if (m.crossVersion == CrossVersion.disabled) Some(":")
-          else None
-        val dep = sepOpt match {
-          case None =>
-            s"${m.organization}:${moduleName(m, sv, sbv)}:${m.revision}${excl.mkString}"
-          case Some(sep) =>
-            s"${m.organization}$sep${m.name}:${m.revision}${excl.mkString}"
-        }
-        Seq(dep)
       }
 
       val forceVersions = dependencyOverrides.value.map { m =>
@@ -82,10 +103,11 @@ object SbtCoursierExportPlugin extends AutoPlugin {
         Seq(Seq("--no-default")) ++
         repositories
 
-      System.err.println(argGroups.map(_.mkString(" ")).mkString(System.lineSeparator))
+      System.err.println(argGroups.flatten.mkString(System.lineSeparator))
 
       argGroups.flatten
     },
+    coursierExportTo := writeTo.evaluated,
     classPathExport := {
       val classPathSeq = fullClasspathAsJars.in(Compile).value
       val classPath = classPathSeq
