@@ -13,6 +13,8 @@ inThisBuild(List(
   )
 ))
 
+sonatypeProfileName := "io.github.alexarchambault"
+
 enablePlugins(ScriptedPlugin)
 sbtPlugin := true
 scriptedLaunchOpts += "-Dplugin.version=" + version.value
