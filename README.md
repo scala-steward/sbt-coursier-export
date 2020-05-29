@@ -25,3 +25,8 @@ org.scalamacros:::paradise:2.1.1
 -r ivy:https://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/[organization]/[module](/scala_[scalaVersion])(/sbt_[sbtVersion])/[revision]/[type]s/[artifact](-[classifier]).[ext]|https://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/[organization]/[module](/scala_[scalaVersion])(/sbt_[sbtVersion])/[revision]/[type]s/[artifact](-[classifier]).[ext]
 ```
 
+## Note
+
+The exported arguments do not originate from coursier itself, that runs the resolution. Rather, they are a best effort at
+reconstructing coursier inputs from various sbt keys. It's still possible that some parameters may be missing. So there can
+still be discrepancies between how resolution is run from sbt, and how it's run via the arguments exported by sbt-coursier-export, if your build uses features or keys not yet supported by sbt-coursier-export.
