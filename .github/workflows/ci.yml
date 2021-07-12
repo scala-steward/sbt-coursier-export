@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v5
+    - uses: coursier/cache-action@v6.2
       with:
         extraFiles: ".github/scripts/*.sh"
     - run: .github/scripts/setup.sh
@@ -26,7 +26,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - uses: coursier/cache-action@v5
+    - uses: coursier/cache-action@v6.2
       with:
         extraFiles: ".github/scripts/*.sh"
     - run: .github/scripts/setup.sh
